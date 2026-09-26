@@ -1,4 +1,4 @@
-# BGA: Beyond Global Alignment — Structured Semantic Transfer for Zero-Shot Hashing
+# SST: Beyond Global Alignment — Structured Semantic Transfer for Zero-Shot Hashing
 
 Anonymous code release. This repository implements the two transfer modules described in the paper — patch-angle attribute structure distillation and attribute-angle unseen–seen geometry alignment — on top of a PZSH-style BLIP + learnable-center hashing pipeline.
 
@@ -15,11 +15,13 @@ pip install -r requirements.txt
 
 Large files are not included; download them to the locations below.
 
-| Item | Source | Expected location |
-|------|--------|-------------------|
-| Prepared dataset splits (images, file lists, precomputed BLIP targets, attribute matrices) | [Baidu Pan](https://pan.baidu.com/s/1JBlRiE9wF6bELNLSlRL4tg?pwd=6pxg) | `dataset/` (AWA, CUB, SUN subfolders) |
-| BLIP ViT-B/16 checkpoint | [Salesforce](https://storage.googleapis.com/sfr-vision-language-research/BLIP/models/model_base.pth) | `BLIP_main/models/BLIP_base.pth` |
-| Stable Diffusion v1 (pseudo-image generation only) | [HuggingFace](https://huggingface.co/runwayml/stable-diffusion-v1-5) | `models/ldm/stable-diffusion-v1/model.ckpt` |
+
+| Item                                                                                       | Source                                                                                               | Expected location                           |
+| ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| Prepared dataset splits (images, file lists, precomputed BLIP targets, attribute matrices) | [Baidu Pan](https://pan.baidu.com/s/1JBlRiE9wF6bELNLSlRL4tg?pwd=6pxg)                                | `dataset/` (AWA, CUB, SUN subfolders)       |
+| BLIP ViT-B/16 checkpoint                                                                   | [Salesforce](https://storage.googleapis.com/sfr-vision-language-research/BLIP/models/model_base.pth) | `BLIP_main/models/BLIP_base.pth`            |
+| Stable Diffusion v1 (pseudo-image generation only)                                         | [HuggingFace](https://huggingface.co/runwayml/stable-diffusion-v1-5)                                 | `models/ldm/stable-diffusion-v1/model.ckpt` |
+
 
 The `dataset/` archives must contain the training lists with precomputed BLIP targets used by the contrastive objective:
 
@@ -34,6 +36,8 @@ Pseudo-images for unseen classes can be regenerated with:
 ```bash
 python get_persudo_img.py --prompt "A photo of a {name}" --outdir dataset/CUB/CUB-last50_is_txt2img/images/pseudo --n_samples 40
 ```
+
+
 
 ## Training
 
