@@ -5,7 +5,6 @@ from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
 
-
 class LSUNBase(Dataset):
     def __init__(self,
                  txt_file,
@@ -42,7 +41,6 @@ class LSUNBase(Dataset):
         if not image.mode == "RGB":
             image = image.convert("RGB")
 
-        # default to score-sde preprocessing
         img = np.array(image).astype(np.uint8)
         crop = min(img.shape[0], img.shape[1])
         h, w, = img.shape[0], img.shape[1]
@@ -58,33 +56,27 @@ class LSUNBase(Dataset):
         example["image"] = (image / 127.5 - 1.0).astype(np.float32)
         return example
 
-
 class LSUNChurchesTrain(LSUNBase):
     def __init__(self, **kwargs):
         super().__init__(txt_file="data/lsun/church_outdoor_train.txt", data_root="data/lsun/churches", **kwargs)
-
 
 class LSUNChurchesValidation(LSUNBase):
     def __init__(self, flip_p=0., **kwargs):
         super().__init__(txt_file="data/lsun/church_outdoor_val.txt", data_root="data/lsun/churches",
                          flip_p=flip_p, **kwargs)
 
-
 class LSUNBedroomsTrain(LSUNBase):
     def __init__(self, **kwargs):
         super().__init__(txt_file="data/lsun/bedrooms_train.txt", data_root="data/lsun/bedrooms", **kwargs)
-
 
 class LSUNBedroomsValidation(LSUNBase):
     def __init__(self, flip_p=0.0, **kwargs):
         super().__init__(txt_file="data/lsun/bedrooms_val.txt", data_root="data/lsun/bedrooms",
                          flip_p=flip_p, **kwargs)
 
-
 class LSUNCatsTrain(LSUNBase):
     def __init__(self, **kwargs):
         super().__init__(txt_file="data/lsun/cat_train.txt", data_root="data/lsun/cats", **kwargs)
-
 
 class LSUNCatsValidation(LSUNBase):
     def __init__(self, flip_p=0., **kwargs):

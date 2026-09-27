@@ -7,7 +7,6 @@ from taming.modules.discriminator.model import NLayerDiscriminator, weights_init
 from taming.modules.losses.lpips import LPIPS
 from taming.modules.losses.vqperceptual import hinge_d_loss, vanilla_d_loss
 
-
 def hinge_d_loss_with_exemplar_weights(logits_real, logits_fake, weights):
     assert weights.shape[0] == logits_real.shape[0] == logits_fake.shape[0]
     loss_real = torch.mean(F.relu(1. - logits_real), dim=[1,2,3])
@@ -22,10 +21,7 @@ def adopt_weight(weight, global_step, threshold=0, value=0.):
         weight = value
     return weight
 
-
 def measure_perplexity(predicted_indices, n_embed):
-    # src: https://github.com/karpathy/deep-vector-quantization/blob/main/model.py
-    # eval cluster perplexity. when perplexity == num_embeddings then all clusters are used exactly equally
     encodings = F.one_hot(predicted_indices, n_embed).float().reshape(-1, n_embed)
     avg_probs = encodings.mean(0)
     perplexity = (-(avg_probs * torch.log(avg_probs + 1e-10)).sum()).exp()
@@ -35,10 +31,8 @@ def measure_perplexity(predicted_indices, n_embed):
 def l1(x, y):
     return torch.abs(x-y)
 
-
 def l2(x, y):
     return torch.pow((x-y), 2)
-
 
 class VQLPIPSWithDiscriminator(nn.Module):
     def __init__(self, disc_start, codebook_weight=1.0, pixelloss_weight=1.0,
@@ -99,7 +93,6 @@ class VQLPIPSWithDiscriminator(nn.Module):
                 global_step, last_layer=None, cond=None, split="train", predicted_indices=None):
         if not exists(codebook_loss):
             codebook_loss = torch.tensor([0.]).to(inputs.device)
-        #rec_loss = torch.abs(inputs.contiguous() - reconstructions.contiguous())
         rec_loss = self.pixel_loss(inputs.contiguous(), reconstructions.contiguous())
         if self.perceptual_weight > 0:
             p_loss = self.perceptual_loss(inputs.contiguous(), reconstructions.contiguous())
@@ -108,12 +101,9 @@ class VQLPIPSWithDiscriminator(nn.Module):
             p_loss = torch.tensor([0.0])
 
         nll_loss = rec_loss
-        #nll_loss = torch.sum(nll_loss) / nll_loss.shape[0]
         nll_loss = torch.mean(nll_loss)
 
-        # now the GAN part
         if optimizer_idx == 0:
-            # generator update
             if cond is None:
                 assert not self.disc_conditional
                 logits_fake = self.discriminator(reconstructions.contiguous())
@@ -149,7 +139,6 @@ class VQLPIPSWithDiscriminator(nn.Module):
             return loss, log
 
         if optimizer_idx == 1:
-            # second pass for discriminator update
             if cond is None:
                 logits_real = self.discriminator(inputs.contiguous().detach())
                 logits_fake = self.discriminator(reconstructions.contiguous().detach())

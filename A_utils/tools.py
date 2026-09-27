@@ -6,7 +6,6 @@ from PIL import Image
 from tqdm import tqdm
 import torchvision.datasets as dsets
 
-
 class ImageList(object):
     def __init__(self, data_path, image_list, transform):
         self.imgs = [(data_path + val.split()[0], np.array([int(la) for la in val.split()[1:]])) for val in image_list]
@@ -56,7 +55,6 @@ def image_transform(resize_size, crop_size, data_set):
                              std=[0.26862954, 0.26130258, 0.27577711])
     ])
 
-
 def get_data(config):
     dsets = {}
     dset_loaders = {}
@@ -94,19 +92,15 @@ def get_data(config):
         return dset_loaders["train_set"], dset_loaders["test"], dset_loaders["database"], \
             len(dsets["train_set"]), len(dsets["test"]), len(dsets["database"])
     
-
 def compute_result(dataloader, net, device):
     bs, clses = [], []
     net.eval()
     for img, cls, _ in tqdm(dataloader):
         clses.append(cls)
 
-        # output = net(img.to(device))    #  ``````````````````
-        hash_codes, _ = net(img.to(device)) # ``````````````````
-        bs.append(hash_codes.data.cpu())    # ``````````````````
-        # bs.append((net(img.to(device))).data.cpu())
+        hash_codes, _ = net(img.to(device))
+        bs.append(hash_codes.data.cpu())
     return torch.cat(bs).sign(), torch.cat(clses)
-
 
 def compute_result_with_caption(dataloader, net, device):
     bs, clses = [], []
@@ -114,9 +108,8 @@ def compute_result_with_caption(dataloader, net, device):
     for img, cls, _ in tqdm(dataloader):
         clses.append(cls)
 
-        hash_codes, _ = net(img.to(device)) # ``````````````````
-        bs.append(hash_codes.data.cpu())    # ``````````````````
-        # bs.append((net(img.to(device))).data.cpu())
+        hash_codes, _ = net(img.to(device))
+        bs.append(hash_codes.data.cpu())
     return torch.cat(bs).sign(), torch.cat(clses)
 
 def compute_result_with_caption_imgandtxtloss(dataloader, net, device):
@@ -125,9 +118,8 @@ def compute_result_with_caption_imgandtxtloss(dataloader, net, device):
     for img, cls, _ in tqdm(dataloader):
         clses.append(cls)
         
-        hash_codes, _, _ = net(img.to(device)) # ``````````````````
-        bs.append(hash_codes.data.cpu())    # ``````````````````
-        # bs.append((net(img.to(device))).data.cpu())
+        hash_codes, _, _ = net(img.to(device))
+        bs.append(hash_codes.data.cpu())
     return torch.cat(bs).sign(), torch.cat(clses)
 
 def compute_result_with_caption_txtangimg_all_in_hash(dataloader, net, device):
@@ -136,9 +128,8 @@ def compute_result_with_caption_txtangimg_all_in_hash(dataloader, net, device):
     for img, cls, _ in tqdm(dataloader):
         clses.append(cls)
         
-        hash_codes, _, _, _, _ = net(img.to(device)) # ``````````````````
-        bs.append(hash_codes.data.cpu())    # ``````````````````
-        # bs.append((net(img.to(device))).data.cpu())
+        hash_codes, _, _, _, _ = net(img.to(device))
+        bs.append(hash_codes.data.cpu())
     return torch.cat(bs).sign(), torch.cat(clses)
 
 def CalcHammingDist(B1, B2):
@@ -146,8 +137,7 @@ def CalcHammingDist(B1, B2):
     distH = 0.5 * (q - np.dot(B1, B2.transpose()))
     return distH
 
-
-def CalcTopMap(rB, qB, retrievalL, queryL, topk):  # topk = -1
+def CalcTopMap(rB, qB, retrievalL, queryL, topk):
     num_query = queryL.shape[0]
     topkmap = 0
     for iter in tqdm(range(num_query)):
@@ -167,4 +157,3 @@ def CalcTopMap(rB, qB, retrievalL, queryL, topk):  # topk = -1
         topkmap = topkmap + topkmap_
     topkmap = topkmap / num_query
     return topkmap
-

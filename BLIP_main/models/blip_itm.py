@@ -16,12 +16,6 @@ class BLIP_ITM(nn.Module):
                  vit_ckpt_layer = 0,                      
                  embed_dim = 256,     
                  ):
-        """
-        Args:
-            med_config (str): path for the mixture of encoder-decoder model's configuration file
-            image_size (int): input image size
-            vit (str): model size of vision transformer
-        """               
         super().__init__()
         
         self.visual_encoder, vision_width = create_vit(vit,image_size, vit_grad_ckpt, vit_ckpt_layer)
@@ -37,7 +31,6 @@ class BLIP_ITM(nn.Module):
 
         self.itm_head = nn.Linear(text_width, 2) 
         
-        
     def forward(self, image, caption, match_head='itm'):
 
         image_embeds = self.visual_encoder(image) 
@@ -46,7 +39,6 @@ class BLIP_ITM(nn.Module):
         text = self.tokenizer(caption, padding='max_length', truncation=True, max_length=35, 
                               return_tensors="pt").to(image.device) 
 
-                 
         if match_head=='itm':
             output = self.text_encoder(text.input_ids,
                                        attention_mask = text.attention_mask,
@@ -66,11 +58,9 @@ class BLIP_ITM(nn.Module):
             sim = image_feat @ text_feat.t()
             return sim
         
-        
 def blip_itm(pretrained='',**kwargs):
     model = BLIP_ITM(**kwargs)
     if pretrained:
         model,msg = load_checkpoint(model,pretrained)
         assert(len(msg.missing_keys)==0)
     return model         
-            

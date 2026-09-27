@@ -1,8 +1,7 @@
 import torch
 import torch.nn as nn
 
-from taming.modules.losses.vqperceptual import *  # TODO: taming dependency yes/no?
-
+from taming.modules.losses.vqperceptual import *
 
 class LPIPSWithDiscriminator(nn.Module):
     def __init__(self, disc_start, logvar_init=0.0, kl_weight=1.0, pixelloss_weight=1.0,
@@ -16,7 +15,6 @@ class LPIPSWithDiscriminator(nn.Module):
         self.pixel_weight = pixelloss_weight
         self.perceptual_loss = LPIPS().eval()
         self.perceptual_weight = perceptual_weight
-        # output log variance
         self.logvar = nn.Parameter(torch.ones(size=()) * logvar_init)
 
         self.discriminator = NLayerDiscriminator(input_nc=disc_in_channels,
@@ -59,9 +57,7 @@ class LPIPSWithDiscriminator(nn.Module):
         kl_loss = posteriors.kl()
         kl_loss = torch.sum(kl_loss) / kl_loss.shape[0]
 
-        # now the GAN part
         if optimizer_idx == 0:
-            # generator update
             if cond is None:
                 assert not self.disc_conditional
                 logits_fake = self.discriminator(reconstructions.contiguous())
@@ -92,7 +88,6 @@ class LPIPSWithDiscriminator(nn.Module):
             return loss, log
 
         if optimizer_idx == 1:
-            # second pass for discriminator update
             if cond is None:
                 logits_real = self.discriminator(inputs.contiguous().detach())
                 logits_fake = self.discriminator(reconstructions.contiguous().detach())
@@ -108,4 +103,3 @@ class LPIPSWithDiscriminator(nn.Module):
                    "{}/logits_fake".format(split): logits_fake.detach().mean()
                    }
             return d_loss, log
-

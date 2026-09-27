@@ -11,18 +11,18 @@ import os
 
 def config_dataset(config):
     if config["dataset"] in ["CUB", "CUB_add"]:
-        config["topK"] = 1000  # 1000
+        config["topK"] = 1000
         config["n_class"] = 200
     elif config["dataset"] == "AWA":
-        config["topK"] = 4000  # 4000
+        config["topK"] = 4000
         config["n_class"] = 50
     elif config["dataset"] == "SUN":
-        config["topK"] = 4000  # 4000
+        config["topK"] = 4000
         config["n_class"] = 717
 
     if config["dataset"] == "CUB":
           config["data_path"] = "dataset/CUB/CUB-last50_is_txt2img/images/"
-    if config["dataset"] == "AWA":  # AWA
+    if config["dataset"] == "AWA":
         config["data_path"] = "dataset/AWA/JPEGImages/"
     if config["dataset"] == "SUN":
         config["data_path"] = "dataset/SUN_Attribute/images/"
@@ -32,7 +32,6 @@ def config_dataset(config):
             config["data"] = {
             "train_set" : {"list_path": f"dataset/CUB/CUB-last50_is_txt2img/images/train_40_with_caption_catgoryname_blip768F.txt", "batch_size": config["batch_size"]},
 
-            
             "database": {"list_path": f"dataset/CUB/CUB-last50_is_txt2img/images/database1.txt", "batch_size": config["batch_size"]},
             "test": {"list_path": f"dataset/CUB/CUB-last50_is_txt2img/images/test1.txt", "batch_size": config["batch_size"]}
             }
@@ -58,7 +57,7 @@ def config_dataset(config):
                 "database": {"list_path": f"dataset/SUN_Attribute/filetxt_500_217/database.txt", "batch_size": config["batch_size"]},
                 "test": {"list_path": f"dataset/SUN_Attribute/filetxt_500_217/test_full.txt", "batch_size": config["batch_size"]}
                 }
-    else:  # AWA
+    else:
         if config["TGI"] == 1:
             config["data"] = {
                 "train_set" : {"list_path": f"dataset/AWA/JPEGImages/train_100_with_caption_catgoryname_AttrVoc_mskimg_SDimg_blip768F.txt", "batch_size": config["batch_size"]},
@@ -75,13 +74,10 @@ def config_dataset(config):
                 }
     return config
 
-
-
 draw_range = [1, 500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000, 5500, 6000, 6500, 7000, 7500, 8000, 8500,
               9000, 9500, 10000]
 
 def pr_curve(rF, qF, rL, qL, draw_range=draw_range):
-    #  https://blog.csdn.net/HackerTom/article/details/89425729
     n_query = qF.shape[0]
     Gnd = (np.dot(qL, rL.transpose()) > 0).astype(np.float32)
     Rank = np.argsort(CalcHammingDist(qF, rF))
@@ -114,15 +110,11 @@ class ImageList_for_train(object):
             )
             for val in image_list
         ]
-        # self.transform_for_vae = transform_for_vae()
-        # self.transform_for_clip = transform_for_clip()
         self.transform_for_blip = image_transform_for_blip(aug, strong)
 
     def __getitem__(self, index):
         path, label_onehot, BLIP_target = self.imgs[index]
         img = Image.open(path).convert('RGB')
-        # img_for_vae = self.transform_for_vae(img)
-        # img_for_clip = self.transform_for_clip(img)
         img_for_blip = self.transform_for_blip(img)
 
         BLIP_target = torch.tensor([float(x) for x in BLIP_target.strip().split()], dtype=torch.float)
@@ -141,15 +133,11 @@ class ImageList(object):
             )
             for val in image_list
         ]
-        # self.transform_for_vae = transform_for_vae()
-        # self.transform_for_clip = transform_for_clip()
         self.transform_for_blip = image_transform_for_blip()
 
     def __getitem__(self, index):
         path, label_onehot = self.imgs[index]
         img = Image.open(path).convert('RGB')
-        # img_for_vae = self.transform_for_vae(img)
-        # img_for_clip = self.transform_for_clip(img)
         img_for_blip = self.transform_for_blip(img)
         return img_for_blip, label_onehot, index
 
@@ -201,7 +189,6 @@ class MyCIFAR10(dsets.CIFAR10):
         target = np.eye(10, dtype=np.int8)[np.array(target)]
         return img, target, index
 
-
 def cifar_dataset(config):
     batch_size = config["batch_size"]
 
@@ -218,7 +205,6 @@ def cifar_dataset(config):
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
     cifar_dataset_root = 'dataset/cifar/'
-    # Dataset
     train_dataset = MyCIFAR10(root=cifar_dataset_root,
                               train=True,
                               transform=transform,
@@ -254,13 +240,10 @@ def cifar_dataset(config):
         first = False
 
     if config["dataset"] == "cifar10":
-        # test:1000, train:5000, database:54000
         pass
     elif config["dataset"] == "cifar10-1":
-        # test:1000, train:5000, database:59000
         database_index = np.concatenate((train_index, database_index))
     elif config["dataset"] == "cifar10-2":
-        # test:10000, train:50000, database:50000
         database_index = train_index
 
     train_dataset.data = X[train_index]
@@ -291,7 +274,6 @@ def cifar_dataset(config):
 
     return train_loader, test_loader, database_loader, \
            train_index.shape[0], test_index.shape[0], database_index.shape[0]
-
 
 def get_data(config):
     if "cifar" in config["dataset"]:
@@ -325,9 +307,6 @@ def get_data(config):
     return dset_loaders["train_set"], dset_loaders["test"], dset_loaders["database"], \
         len(dsets["train_set"]), len(dsets["test"]), len(dsets["database"])
 
-
-
-# ==================================== get_data_for_CLIP ====================================
 class ImageList_for_train_CLip(object):
     def __init__(self, data_path, image_list, transform_for_clip):
         self.imgs = [
@@ -370,7 +349,6 @@ class ImageList_for_Clip(object):
     def __len__(self):
         return len(self.imgs)
 
-
 def get_data_for_CLIP(config):
     if "cifar" in config["dataset"]:
         return cifar_dataset(config)
@@ -399,19 +377,14 @@ def get_data_for_CLIP(config):
     return dset_loaders["train_set"], dset_loaders["test"], dset_loaders["database"], \
         len(dsets["train_set"]), len(dsets["test"]), len(dsets["database"])
 
-
-
-
 def compute_result(dataloader, net, device):
     bs, clses = [], []
     net.eval()
     for image_for_vae, image_for_clip, cls, ind in tqdm(dataloader):
         clses.append(cls)
 
-        # output = net(img.to(device))   
         hash_codes, _ = net(image_for_vae.to(device), image_for_clip.to(device)) 
         bs.append(hash_codes.data.cpu())    
-        # bs.append((net(img.to(device))).data.cpu())
     return torch.cat(bs).sign(), torch.cat(clses)
 
 def compute_result_BlipHash1(dataloader, net, device):
@@ -442,7 +415,6 @@ def compute_result_BlipHash_attr(dataloader, net, device):
                 raise RuntimeError("--dump_attr requires --attr_patch 1")
             attrs.append(attr_logits.data.float().cpu())
     return torch.cat(bs).sign(), torch.cat(clses), torch.cat(attrs)
-
 
 def compute_result_BlipHash_4_5(dataloader, net, device):
     bs, clses = [], []
@@ -480,7 +452,6 @@ def compute_result_with_caption(dataloader, net, device):
 
         hash_codes, _ = net(img.to(device))
         bs.append(hash_codes.data.cpu())    
-        # bs.append((net(img.to(device))).data.cpu())
     return torch.cat(bs).sign(), torch.cat(clses)
 
 def compute_result_with_caption_imgandtxtloss(dataloader, net, device):
@@ -491,7 +462,6 @@ def compute_result_with_caption_imgandtxtloss(dataloader, net, device):
         
         hash_codes, _, _ = net(img.to(device)) 
         bs.append(hash_codes.data.cpu())    
-        # bs.append((net(img.to(device))).data.cpu())
     return torch.cat(bs).sign(), torch.cat(clses)
 
 def compute_result_with_caption_txtangimg_all_in_hash(dataloader, net, device):
@@ -502,14 +472,12 @@ def compute_result_with_caption_txtangimg_all_in_hash(dataloader, net, device):
         
         hash_codes, _, _, _, _ = net(img.to(device)) 
         bs.append(hash_codes.data.cpu())    
-        # bs.append((net(img.to(device))).data.cpu())
     return torch.cat(bs).sign(), torch.cat(clses)
 
 def CalcHammingDist(B1, B2):
     q = B2.shape[1]
     distH = 0.5 * (q - np.dot(B1, B2.transpose()))
     return distH
-
 
 def _tta_crops(img):
     img = transforms.Resize(256, interpolation=InterpolationMode.BICUBIC)(img)
@@ -519,7 +487,6 @@ def _tta_crops(img):
         crops.append(c)
         crops.append(transforms.functional.hflip(c))
     return crops
-
 
 class TTAImageList(object):
 
@@ -544,7 +511,6 @@ class TTAImageList(object):
     def __len__(self):
         return len(self.imgs)
 
-
 def get_data_tta(config):
     data_config = config["data"]
     test_set = TTAImageList(config["data_path"],
@@ -556,7 +522,6 @@ def get_data_tta(config):
     db_loader = util_data.DataLoader(db_set, batch_size=data_config["database"]["batch_size"],
                                      shuffle=False, num_workers=4)
     return test_loader, db_loader
-
 
 def compute_result_tta(dataloader, net, device):
     bs, clses = [], []
@@ -570,8 +535,7 @@ def compute_result_tta(dataloader, net, device):
             bs.append(h.data.cpu())
     return torch.cat(bs), torch.cat(clses)
 
-
-def CalcTopMap(rB, qB, retrievalL, queryL, topk):  # topk = -1
+def CalcTopMap(rB, qB, retrievalL, queryL, topk):
     num_query = queryL.shape[0]
     topkmap = 0
     for iter in tqdm(range(num_query)):
@@ -591,4 +555,3 @@ def CalcTopMap(rB, qB, retrievalL, queryL, topk):  # topk = -1
         topkmap = topkmap + topkmap_
     topkmap = topkmap / num_query
     return topkmap
-

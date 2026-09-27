@@ -1,4 +1,3 @@
-"""shout-out to https://github.com/lucidrains/x-transformers/tree/main/x_transformers"""
 import torch
 from torch import nn, einsum
 import torch.nn.functional as F
@@ -6,8 +5,6 @@ from functools import partial
 from inspect import isfunction
 from collections import namedtuple
 from einops import rearrange, repeat, reduce
-
-# constants
 
 DEFAULT_DIM_HEAD = 64
 
@@ -20,7 +17,6 @@ LayerIntermediates = namedtuple('Intermediates', [
     'hiddens',
     'attn_intermediates'
 ])
-
 
 class AbsolutePositionalEmbedding(nn.Module):
     def __init__(self, dim, max_seq_len):
@@ -35,7 +31,6 @@ class AbsolutePositionalEmbedding(nn.Module):
         n = torch.arange(x.shape[1], device=x.device)
         return self.emb(n)[None, :, :]
 
-
 class FixedPositionalEmbedding(nn.Module):
     def __init__(self, dim):
         super().__init__()
@@ -48,47 +43,35 @@ class FixedPositionalEmbedding(nn.Module):
         emb = torch.cat((sinusoid_inp.sin(), sinusoid_inp.cos()), dim=-1)
         return emb[None, :, :]
 
-
-# helpers
-
 def exists(val):
     return val is not None
-
 
 def default(val, d):
     if exists(val):
         return val
     return d() if isfunction(d) else d
 
-
 def always(val):
     def inner(*args, **kwargs):
         return val
     return inner
-
 
 def not_equals(val):
     def inner(x):
         return x != val
     return inner
 
-
 def equals(val):
     def inner(x):
         return x == val
     return inner
 
-
 def max_neg_value(tensor):
     return -torch.finfo(tensor.dtype).max
-
-
-# keyword argument helpers
 
 def pick_and_pop(keys, d):
     values = list(map(lambda key: d.pop(key), keys))
     return dict(zip(keys, values))
-
 
 def group_dict_by_key(cond, d):
     return_val = [dict(), dict()]
@@ -98,22 +81,17 @@ def group_dict_by_key(cond, d):
         return_val[ind][key] = d[key]
     return (*return_val,)
 
-
 def string_begins_with(prefix, str):
     return str.startswith(prefix)
 
-
 def group_by_key_prefix(prefix, d):
     return group_dict_by_key(partial(string_begins_with, prefix), d)
-
 
 def groupby_prefix_and_trim(prefix, d):
     kwargs_with_prefix, kwargs = group_dict_by_key(partial(string_begins_with, prefix), d)
     kwargs_without_prefix = dict(map(lambda x: (x[0][len(prefix):], x[1]), tuple(kwargs_with_prefix.items())))
     return kwargs_without_prefix, kwargs
 
-
-# classes
 class Scale(nn.Module):
     def __init__(self, value, fn):
         super().__init__()
@@ -124,7 +102,6 @@ class Scale(nn.Module):
         x, *rest = self.fn(x, **kwargs)
         return (x * self.value, *rest)
 
-
 class Rezero(nn.Module):
     def __init__(self, fn):
         super().__init__()
@@ -134,7 +111,6 @@ class Rezero(nn.Module):
     def forward(self, x, **kwargs):
         x, *rest = self.fn(x, **kwargs)
         return (x * self.g, *rest)
-
 
 class ScaleNorm(nn.Module):
     def __init__(self, dim, eps=1e-5):
@@ -147,7 +123,6 @@ class ScaleNorm(nn.Module):
         norm = torch.norm(x, dim=-1, keepdim=True) * self.scale
         return x / norm.clamp(min=self.eps) * self.g
 
-
 class RMSNorm(nn.Module):
     def __init__(self, dim, eps=1e-8):
         super().__init__()
@@ -159,11 +134,9 @@ class RMSNorm(nn.Module):
         norm = torch.norm(x, dim=-1, keepdim=True) * self.scale
         return x / norm.clamp(min=self.eps) * self.g
 
-
 class Residual(nn.Module):
     def forward(self, x, residual):
         return x + residual
-
 
 class GRUGating(nn.Module):
     def __init__(self, dim):
@@ -178,9 +151,6 @@ class GRUGating(nn.Module):
 
         return gated_output.reshape_as(x)
 
-
-# feedforward
-
 class GEGLU(nn.Module):
     def __init__(self, dim_in, dim_out):
         super().__init__()
@@ -189,7 +159,6 @@ class GEGLU(nn.Module):
     def forward(self, x):
         x, gate = self.proj(x).chunk(2, dim=-1)
         return x * F.gelu(gate)
-
 
 class FeedForward(nn.Module):
     def __init__(self, dim, dim_out=None, mult=4, glu=False, dropout=0.):
@@ -210,8 +179,6 @@ class FeedForward(nn.Module):
     def forward(self, x):
         return self.net(x)
 
-
-# attention.
 class Attention(nn.Module):
     def __init__(
             self,
@@ -242,26 +209,20 @@ class Attention(nn.Module):
         self.to_v = nn.Linear(dim, inner_dim, bias=False)
         self.dropout = nn.Dropout(dropout)
 
-        # talking heads
         self.talking_heads = talking_heads
         if talking_heads:
             self.pre_softmax_proj = nn.Parameter(torch.randn(heads, heads))
             self.post_softmax_proj = nn.Parameter(torch.randn(heads, heads))
 
-        # explicit topk sparse attention
         self.sparse_topk = sparse_topk
 
-        # entmax
-        #self.attn_fn = entmax15 if use_entmax15 else F.softmax
         self.attn_fn = F.softmax
 
-        # add memory key / values
         self.num_mem_kv = num_mem_kv
         if num_mem_kv > 0:
             self.mem_k = nn.Parameter(torch.randn(heads, num_mem_kv, dim_head))
             self.mem_v = nn.Parameter(torch.randn(heads, num_mem_kv, dim_head))
 
-        # attention on attention
         self.attn_on_attn = on_attn
         self.to_out = nn.Sequential(nn.Linear(inner_dim, dim * 2), nn.GLU()) if on_attn else nn.Linear(inner_dim, dim)
 
@@ -288,7 +249,6 @@ class Attention(nn.Module):
             v_input = torch.cat((mem, v_input), dim=-2)
 
         if exists(sinusoidal_emb):
-            # in shortformer, the query would start at a position offset depending on the past cached memory
             offset = k_input.shape[-2] - q_input.shape[-2]
             q_input = q_input + sinusoidal_emb(q_input, offset=offset)
             k_input = k_input + sinusoidal_emb(k_input)
@@ -366,7 +326,6 @@ class Attention(nn.Module):
 
         return self.to_out(out), intermediates
 
-
 class AttentionLayers(nn.Module):
     def __init__(
             self,
@@ -438,7 +397,7 @@ class AttentionLayers(nn.Module):
             assert 1 < par_ratio <= par_depth, 'par ratio out of range'
             default_block = tuple(filter(not_equals('f'), default_block))
             par_attn = par_depth // par_ratio
-            depth_cut = par_depth * 2 // 3  # 2 / 3 attention layer cutoff suggested by PAR paper
+            depth_cut = par_depth * 2 // 3
             par_width = (depth_cut + depth_cut // par_attn) // par_attn
             assert len(default_block) <= par_width, 'default block is too large for par_ratio'
             par_block = default_block + ('f',) * (par_width - len(default_block))
@@ -537,13 +496,10 @@ class AttentionLayers(nn.Module):
 
         return x
 
-
 class Encoder(AttentionLayers):
     def __init__(self, **kwargs):
         assert 'causal' not in kwargs, 'cannot set causality on encoder'
         super().__init__(causal=False, **kwargs)
-
-
 
 class TransformerWrapper(nn.Module):
     def __init__(
@@ -582,13 +538,11 @@ class TransformerWrapper(nn.Module):
 
         self.to_logits = nn.Linear(dim, num_tokens) if not tie_embedding else lambda t: t @ self.token_emb.weight.t()
 
-        # memory tokens (like [cls]) from Memory Transformers paper
         num_memory_tokens = default(num_memory_tokens, 0)
         self.num_memory_tokens = num_memory_tokens
         if num_memory_tokens > 0:
             self.memory_tokens = nn.Parameter(torch.randn(num_memory_tokens, dim))
 
-            # let funnel encoder know number of memory tokens, if specified
             if hasattr(attn_layers, 'num_memory_tokens'):
                 attn_layers.num_memory_tokens = num_memory_tokens
 
@@ -616,7 +570,6 @@ class TransformerWrapper(nn.Module):
             mem = repeat(self.memory_tokens, 'n d -> b n d', b=b)
             x = torch.cat((mem, x), dim=1)
 
-            # auto-handle masking after appending memory tokens
             if exists(mask):
                 mask = F.pad(mask, (num_mem, 0), value=True)
 
@@ -638,4 +591,3 @@ class TransformerWrapper(nn.Module):
             return out, attn_maps
 
         return out
-

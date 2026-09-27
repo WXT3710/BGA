@@ -1,5 +1,3 @@
-# Compatibility monkey-patch for transformers >= 5.x
-# Fix: all_tied_weights_keys must exist on PreTrainedModel subclasses
 import transformers
 _orig_init = transformers.PreTrainedModel.__init__
 def _patched_init(self, config, *args, **kwargs):
@@ -34,7 +32,6 @@ import argparse
 from BLIP_main.models import blip_itm
 from torch.optim.lr_scheduler import StepLR
 
-
 def setup_seed(seed):
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
@@ -42,7 +39,6 @@ def setup_seed(seed):
     random.seed(seed)
     torch.backends.cudnn.deterministic = True
 setup_seed(42)
-
 
 def parse_args():
     parser = argparse.ArgumentParser(description="BLIP Hash Model Training")
@@ -85,7 +81,6 @@ def parse_args():
     parser.add_argument('--proxy_beta', type=float, default=None,
                         help="beta: weight of Lproxy (Eq.11). None=dataset default (AWA 1.0 / CUB 0.7)")
 
-    # ---- ALBM-inspired: attribute + patch transfer (separate λ-weighted losses) ----
     parser.add_argument('--attr_transfer', type=int, default=0,
                         help="(A) unseen-centre attribute transfer (0=off, 1=on)")
     parser.add_argument('--attr_transfer_weight', type=float, default=1.0)
@@ -126,7 +121,6 @@ def parse_args():
                         help="")
 
     return parser.parse_args()
-
 
 def get_config(args):
     config = {
@@ -170,9 +164,8 @@ def get_config(args):
         "blip_med_config": 'BLIP_main/configs/med_config.json',
         "blip_vit_mode": 'base',
 
-        "centre_init": args.init,     # randn | bernoulli
+        "centre_init": args.init,
 
-        # ALBM-inspired: attribute + patch transfer (separate λ-weighted losses)
         "attr_transfer": bool(args.attr_transfer),
         "attr_transfer_weight": args.attr_transfer_weight,
         "attr_transfer_temp": args.attr_transfer_temp,
@@ -214,14 +207,13 @@ def get_config(args):
     elif config["dataset"] == "SUN":
         config["txt2img_n"] = 0
         config["n_class"] = 717
-        config["num_train"] = 12557  # 500 seen x 16 real + 217 unseen x 21 pseudo
+        config["num_train"] = 12557
         config["num_seen"] = 500
         if args.hash_weight is None:
             config["hash_weight"] = 0.5
         if args.proxy_beta is None:
             config["proxy_beta"] = 1.0
 
-    # allow CLI to override the dataset defaults
     if args.hash_weight is not None:
         config["hash_weight"] = args.hash_weight
     if args.proxy_beta is not None:
@@ -231,7 +223,6 @@ def get_config(args):
     if args.train_file_override:
         config["data"]["train_set"]["list_path"] = args.train_file_override
     return config
-
 
 class Blip_Hash(nn.Module):
     def __init__(self, config, bit):
@@ -253,8 +244,6 @@ class Blip_Hash(nn.Module):
             nn.Linear(512, self.hash_bit)
         )
 
-        # (B) patch -> attribute head (the "patch angle"): patches predict the
-        # class attribute vector, forcing the encoder to encode attribute semantics.
         self.attr_head = None
         self.attr_pool = config.get("attr_patch_pool", "mean")
         self.patch_attn = None
@@ -262,11 +251,6 @@ class Blip_Hash(nn.Module):
         if config.get("attr_patch", False):
             n_attr = config["n_attr"]
             if self.attr_pool == "queries":
-                # Fine-grained variant: one learnable query per attribute dimension.
-                # Each query cross-attends over the 196 patch tokens, so the attention
-                # map [n_attr, 196] IS the patch<->attribute alignment -- every attribute
-                # explicitly selects the patches it reads from. The output stays
-                # [B, n_attr], so the downstream relational loss is unchanged.
                 self.attr_queries = nn.Parameter(torch.randn(n_attr, 768) * 0.02)
                 self.attr_head = nn.Linear(768, 1)
             else:
@@ -290,30 +274,24 @@ class Blip_Hash(nn.Module):
 
         attr_logits = None
         if self.attr_head is not None:
-            patch_feats = vision_embeds[:, 1:, :]       # [B, 196, 768]
+            patch_feats = vision_embeds[:, 1:, :]
             if self.attr_pool == "attention":
-                w = torch.softmax(self.patch_attn(patch_feats), dim=1)  # [B,196,1]
-                patch_pool = (patch_feats * w).sum(dim=1)               # [B,768]
+                w = torch.softmax(self.patch_attn(patch_feats), dim=1)
+                patch_pool = (patch_feats * w).sum(dim=1)
             elif self.attr_pool == "clspatch":
-                patch_pool = torch.cat([cls_feat, patch_feats.mean(dim=1)], dim=-1)  # [B,1536]
+                patch_pool = torch.cat([cls_feat, patch_feats.mean(dim=1)], dim=-1)
             elif self.attr_pool == "cls":
-                # Control: same MLP shape (768 -> 512 -> n_attr) and the same relational
-                # loss, but fed the CLS token instead of the pooled patch tokens. Isolates
-                # whether the gain comes from the patch features or merely from attaching
-                # a second attribute branch to the shared encoder.
-                patch_pool = cls_feat                                   # [B,768]
+                patch_pool = cls_feat
             elif self.attr_pool == "queries":
-                # Fine-grained: per-attribute queries attend over the patches.
                 att = torch.einsum('ad,bpd->bap', self.attr_queries, patch_feats)
-                att = (att / (patch_feats.shape[-1] ** 0.5)).softmax(dim=-1)  # [B,n_attr,196]
-                pooled = att @ patch_feats                              # [B, n_attr, 768]
-                attr_logits = self.attr_head(pooled).squeeze(-1)        # [B, n_attr]
+                att = (att / (patch_feats.shape[-1] ** 0.5)).softmax(dim=-1)
+                pooled = att @ patch_feats
+                attr_logits = self.attr_head(pooled).squeeze(-1)
             else:
-                patch_pool = patch_feats.mean(dim=1)                    # [B,768]
+                patch_pool = patch_feats.mean(dim=1)
             if self.attr_pool != "queries":
-                attr_logits = self.attr_head(patch_pool)    # [B, n_attr]
+                attr_logits = self.attr_head(patch_pool)
         return proj_feat, hash_feat, attr_logits
-
 
 class Blip_Hash_NET(nn.Module):
     def __init__(self, config, hash_bit):
@@ -327,9 +305,6 @@ class Blip_Hash_NET(nn.Module):
 
     @torch.no_grad()
     def _momentum_update_key_encoder(self):
-        """
-        Momentum update of the key encoder
-        """
         for param_q, param_k in zip(self.encoder_q.parameters(), self.encoder_k.parameters()):
             param_k.data = param_k.data * self.m + param_q.data * (1. - self.m)
 
@@ -339,7 +314,6 @@ class Blip_Hash_NET(nn.Module):
             self._momentum_update_key_encoder()
             blip_f2, encode_x2, _ = self.encoder_k(x)
         return blip_f1, encode_x, encode_x2, attr_logits
-
 
 class LogSoftmaxContrastiveLoss_all_positive_samples(nn.Module):
     def __init__(self, temperature=0.07, exclude_self=True):
@@ -353,7 +327,7 @@ class LogSoftmaxContrastiveLoss_all_positive_samples(nn.Module):
         target_feats = F.normalize(target_feats, dim=-1)
 
         logits = torch.matmul(pred_feats, target_feats.T) / self.temperature
-        log_probs = self.log_softmax(logits)  # [B, B]
+        log_probs = self.log_softmax(logits)
 
         with torch.no_grad():
             pos_mask = (labels @ labels.T)
@@ -369,11 +343,7 @@ class LogSoftmaxContrastiveLoss_all_positive_samples(nn.Module):
 
         return loss
 
-
 class Center_Loss1(nn.Module):
-    """
-    
-    """
 
     def __init__(self, config, bit, class_list):
         super(Center_Loss1, self).__init__()
@@ -394,8 +364,8 @@ class Center_Loss1(nn.Module):
         if self.centres.device != pred_hash.device:
             self.centres.data = self.centres.data.to(pred_hash.device)
 
-        labels = torch.argmax(label_onehot, dim=1)                # [B]
-        batch_centres = self.centres[labels]                      # [B, bit]
+        labels = torch.argmax(label_onehot, dim=1)
+        batch_centres = self.centres[labels]
 
         loss_centre = F.mse_loss(pred_hash, batch_centres)
 
@@ -405,11 +375,7 @@ class Center_Loss1(nn.Module):
 
         return loss_centre + self.consistency_weight * loss_consistency
 
-
 class SSTOfficialHashLoss(nn.Module):
-    """
-
-    """
     def __init__(self, config, bit):
         super().__init__()
         self.bit = bit
@@ -468,29 +434,14 @@ class SSTOfficialHashLoss(nn.Module):
         loss = positive_mask * torch.log1p(torch.exp(0.5 * (1 - similarity)))
         return loss.sum() / (positive_mask.sum() + 1e-6)
 
-
 class ProxyHashLoss(nn.Module):
-    """
-    SST hashing loss (paper Eq. 8-11):  Lhash = Lcos + Lquant + beta*Lproxy
-
-      - Lcos:    cosine-softmax classification of each hash code against the
-                 class-wise semantic centres (Bernoulli {−1,+1}, selected from
-                 multiple trials to maximise pairwise Hamming distance), scaled
-                 by alpha = sqrt(K).
-      - Lquant:  binarisation loss pushing |bi| towards 1.
-      - Lproxy:  proxy contrastive loss over same-class pairs, encouraging
-                 intra-class compactness, weighted by beta.
-
-    This replaces the earlier MSE-to-centre "Center_Loss1", which did NOT match
-    the paper's formulation.
-    """
 
     def __init__(self, config, bit, class_list):
         super(ProxyHashLoss, self).__init__()
         self.bit = bit
         self.n_class = len(class_list)
-        self.cos_scale = float(bit) ** 0.5          # alpha in Eq.8 (sqrt(K))
-        self.beta = config.get("proxy_beta", 1.0)   # beta in Eq.11
+        self.cos_scale = float(bit) ** 0.5
+        self.beta = config.get("proxy_beta", 1.0)
 
         init_mode = config.get("centre_init", "bernoulli")
         if init_mode == "bernoulli":
@@ -500,12 +451,10 @@ class ProxyHashLoss(nn.Module):
         self.centres = nn.Parameter(centres_init)
 
     def _bernoulli_centres(self, n_class, bit, n_trials=10):
-        """Bernoulli {−1,+1} centres; keep the trial with the largest average
-        pairwise Hamming distance (paper Eq.7)."""
         best, best_ham = None, -1.0
         for _ in range(n_trials):
             c = torch.bernoulli(torch.full((n_class, bit), 0.5)) * 2 - 1
-            ham = (bit - c @ c.T) / 2.0                 # [n_class, n_class]
+            ham = (bit - c @ c.T) / 2.0
             off = ~torch.eye(n_class, dtype=torch.bool)
             avg_ham = ham[off].mean().item()
             if avg_ham > best_ham:
@@ -513,32 +462,20 @@ class ProxyHashLoss(nn.Module):
         return best
 
     def forward(self, bi, label_onehot):
-        """
-        Args:
-            bi:           continuous hash codes from query encoder [B, bit],
-                          tanh ∈ (-1,+1)
-            label_onehot: one-hot labels [B, n_class]
-
-        Returns:
-            Lcos + Lquant + beta * Lproxy
-        """
         if self.centres.device != bi.device:
             self.centres.data = self.centres.data.to(bi.device)
 
-        labels = torch.argmax(label_onehot, dim=1)        # [B]
+        labels = torch.argmax(label_onehot, dim=1)
 
         bi_n = F.normalize(bi, dim=1)
         c_n = F.normalize(self.centres, dim=1)
 
-        # --- Lcos: cosine-softmax classification (Eq.8) ---
-        logits = self.cos_scale * (bi_n @ c_n.T)          # [B, n_class]
+        logits = self.cos_scale * (bi_n @ c_n.T)
         Lcos = F.cross_entropy(logits, labels)
 
-        # --- Lquant: binarisation (Eq.9) ---
         Lquant = ((bi.abs() - 1.0) ** 2).mean()
 
-        # --- Lproxy: proxy contrastive over positive pairs (Eq.10) ---
-        cos_pair = bi_n @ bi_n.T                          # [B, B]
+        cos_pair = bi_n @ bi_n.T
         pos = (labels.unsqueeze(0) == labels.unsqueeze(1)).float()
         pos.fill_diagonal_(0.0)
         n_pos = pos.sum()
@@ -550,9 +487,7 @@ class ProxyHashLoss(nn.Module):
 
         return Lcos + Lquant + self.beta * Lproxy
 
-
 def compute_result_plain(dataloader, net, device):
-    """"""
     bs, clses = [], []
     net.eval()
     with torch.no_grad():
@@ -563,12 +498,10 @@ def compute_result_plain(dataloader, net, device):
             bs.append(hash_codes.data.cpu())
     return torch.cat(bs).sign(), torch.cat(clses)
 
-
 def train_val(config, bit):
 
     device = config["device"]
 
-    # Load attribute semantics once if any ALBM-style mechanism is enabled
     attr_matrix = None
     transfer_loss_fn = None
     center_attr_loss_fn = None
@@ -578,9 +511,6 @@ def train_val(config, bit):
     if use_attr:
         attr_matrix, attr_cont, S_attr, seen_idx, unseen_idx, S_attr_cont = \
             load_attribute_matrix(config)
-        # The geometry loss can be aligned to either target. Default keeps the presence
-        # vectors, matching the paper; 'continuous' is the control that asks whether the
-        # thresholding is actually doing work.
         if config.get("attr_center_target", "presence") == "continuous":
             S_attr = S_attr_cont
             logger.info("(C) geometry target = CONTINUOUS attributes (control)")
@@ -590,7 +520,7 @@ def train_val(config, bit):
         
         attr_topk_mask = None
         if config.get("attr_patch_mode", "bce") == "bce_topk":
-            freq = attr_matrix.mean(dim=0)                     # [n_attr]
+            freq = attr_matrix.mean(dim=0)
             score = attr_matrix * (1.0 - freq)                 
             k = min(config.get("attr_patch_topk", 32), attr_matrix.shape[1])
             _, idx = score.topk(k, dim=1)
@@ -611,7 +541,6 @@ def train_val(config, bit):
 
     l = list(range(config['n_class']))
 
-
     if config["hash_loss"] == "center_loss":
         hash_criterion = Center_Loss1(config, bit, l).to(device)
     elif config["hash_loss"] == "official":
@@ -622,10 +551,9 @@ def train_val(config, bit):
     optimizer.add_param_group(
         {"params": hash_criterion.parameters(), "lr": 2e-4})
 
-    # ---- ALBM-inspired: attribute + patch transfer (separate λ-weighted losses) ----
     if config.get("attr_transfer", False):
         transfer_loss_fn = AttributeTransferLoss(config, S_attr, seen_idx, unseen_idx).to(device)
-        transfer_loss_fn.init_centres(hash_criterion.centres)   # semantic init of unseen centres
+        transfer_loss_fn.init_centres(hash_criterion.centres)
         logger.info("(A) Attribute centre transfer enabled")
 
     if config.get("attr_center", False):
@@ -668,7 +596,6 @@ def train_val(config, bit):
             align_loss = cosine_loss_fn(pred_features, BLIP_target, label_onehot)
 
             if config["hash_loss"] == "center_loss":
-                # SST-main baseline: loss = align + 1.0 * L_center
                 h_loss = hash_criterion(pred_hash, pred_hash2, label_onehot, ind, epoch)
                 loss = align_loss + h_loss
                 hash_term = h_loss.item()
@@ -681,15 +608,12 @@ def train_val(config, bit):
                 loss = align_loss + config["hash_weight"] * h_loss
                 hash_term = config["hash_weight"] * h_loss.item()
 
-            # (A) unseen-centre attribute transfer (anchor)
             if transfer_loss_fn is not None:
                 loss = loss + config["attr_transfer_weight"] * transfer_loss_fn(hash_criterion.centres)
 
-            # (C) centre-attribute structure alignment
             if center_attr_loss_fn is not None:
                 loss = loss + config["attr_center_weight"] * center_attr_loss_fn(hash_criterion.centres)
 
-            # (B) patch -> attribute supervision
             attr_loss = torch.tensor(0.0, device=device)
             if attr_logits is not None:
                 labels = torch.argmax(label_onehot, dim=1)
@@ -789,14 +713,7 @@ def train_val(config, bit):
 
                 logger.info(f"✅ Best model saved with mAP: {mAP:.4f}")
 
-                # Patch-branch capture. The run never saves model weights, so the only
-                # chance to record what the attribute branch represents is here, at the
-                # epoch the reported number comes from.
-                # Guard on attr_patch: the ablated variant has no attribute branch, so
-                # attr_logits is None and there is nothing to capture.
                 if config.get("dump_attr", False) and config.get("attr_patch", False):
-                    # Save the labels from the same pass, so the embedding-to-class
-                    # pairing does not depend on the two loaders agreeing on order.
                     _, tst_lab_a, tst_attr = compute_result_BlipHash_attr(test_loader, net, device)
                     _, trn_lab_a, trn_attr = compute_result_BlipHash_attr(dataset_loader, net, device)
                     for tag, arr in (("tst", tst_attr), ("trn", trn_attr),
@@ -806,11 +723,8 @@ def train_val(config, bit):
                                 arr.numpy())
                     logger.info("   patch-branch attribute embeddings saved")
 
-
 if __name__ == "__main__":
     args = parse_args()
-    # Re-seed from the flag. The module-level setup_seed(42) above still runs at import
-    # time and would otherwise pin every experiment to seed 42.
     setup_seed(args.seed)
     config = get_config(args)
 
@@ -827,5 +741,3 @@ if __name__ == "__main__":
         logger.info(f"blip_loss：{config['blip_loss']}，  hash_loss：{config['hash_loss']}")
 
         train_val(config, bit)
-
-    #  pip install transformers==4.36.2

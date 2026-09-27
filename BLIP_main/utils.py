@@ -1,18 +1,15 @@
 import math
 def cosine_lr_schedule(optimizer, epoch, max_epoch, init_lr, min_lr):
-    """Decay the learning rate"""
     lr = (init_lr - min_lr) * 0.5 * (1. + math.cos(math.pi * epoch / max_epoch)) + min_lr
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
         
 def warmup_lr_schedule(optimizer, step, max_step, init_lr, max_lr):
-    """Warmup the learning rate"""
     lr = min(max_lr, init_lr + (max_lr - init_lr) * step / max_step)
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr    
 
 def step_lr_schedule(optimizer, epoch, init_lr, min_lr, decay_rate):        
-    """Decay the learning rate"""
     lr = max(min_lr, init_lr * (decay_rate**epoch))
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr    
@@ -28,9 +25,6 @@ import torch
 import torch.distributed as dist
 
 class SmoothedValue(object):
-    """Track a series of values and provide access to smoothed values over a
-    window or the global series average.
-    """
 
     def __init__(self, window_size=20, fmt=None):
         if fmt is None:
@@ -46,9 +40,6 @@ class SmoothedValue(object):
         self.total += value * n
 
     def synchronize_between_processes(self):
-        """
-        Warning: does not synchronize the deque!
-        """
         if not is_dist_avail_and_initialized():
             return
         t = torch.tensor([self.count, self.total], dtype=torch.float64, device='cuda')
@@ -87,7 +78,6 @@ class SmoothedValue(object):
             global_avg=self.global_avg,
             max=self.max,
             value=self.value)
-
 
 class MetricLogger(object):
     def __init__(self, delimiter="\t"):
@@ -178,12 +168,10 @@ class MetricLogger(object):
         print('{} Total time: {} ({:.4f} s / it)'.format(
             header, total_time_str, total_time / len(iterable)))
         
-
 class AttrDict(dict):
     def __init__(self, *args, **kwargs):
         super(AttrDict, self).__init__(*args, **kwargs)
         self.__dict__ = self
-
 
 def compute_acc(logits, label, reduction='mean'):
     ret = (torch.argmax(logits, dim=1) == label).float()
@@ -208,9 +196,6 @@ def compute_n_params(model, return_str=True):
         return tot
 
 def setup_for_distributed(is_master):
-    """
-    This function disables printing when not in master process
-    """
     import builtins as __builtin__
     builtin_print = __builtin__.print
 
@@ -221,7 +206,6 @@ def setup_for_distributed(is_master):
 
     __builtin__.print = print
 
-
 def is_dist_avail_and_initialized():
     if not dist.is_available():
         return False
@@ -229,27 +213,22 @@ def is_dist_avail_and_initialized():
         return False
     return True
 
-
 def get_world_size():
     if not is_dist_avail_and_initialized():
         return 1
     return dist.get_world_size()
-
 
 def get_rank():
     if not is_dist_avail_and_initialized():
         return 0
     return dist.get_rank()
 
-
 def is_main_process():
     return get_rank() == 0
-
 
 def save_on_master(*args, **kwargs):
     if is_main_process():
         torch.save(*args, **kwargs)
-
 
 def init_distributed_mode(args):
     if 'RANK' in os.environ and 'WORLD_SIZE' in os.environ:
@@ -274,5 +253,3 @@ def init_distributed_mode(args):
                                          world_size=args.world_size, rank=args.rank)
     torch.distributed.barrier()
     setup_for_distributed(args.rank == 0)        
-        
-        

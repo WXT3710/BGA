@@ -19,7 +19,6 @@ from ldm.models.diffusion.ddim import DDIMSampler
 from ldm.models.diffusion.plms import PLMSSampler
 from ldm.models.diffusion.dpm_solver import DPMSolverSampler
 
-
 def chunk(it, size):
     it = iter(it)
     return iter(lambda: tuple(islice(it, size)), ())
@@ -63,8 +62,6 @@ def load_replacement(x):
         return y
     except Exception:
         return x
-
-
 
 def main():
     parser = argparse.ArgumentParser()
@@ -115,7 +112,6 @@ def main():
         sampler = DDIMSampler(model)
 
     os.makedirs(opt.outdir, exist_ok=True)
-    # sample_path = os.path.join(opt.outdir, "samples")
     sample_path = opt.outdir
     os.makedirs(sample_path, exist_ok=True)
 
@@ -133,10 +129,8 @@ def main():
             data = f.read().splitlines()
             data = list(chunk(data, batch_size))
 
-    # base_count = len(os.listdir(sample_path))  
     base_count = 0 
     grid_count = len(os.listdir(opt.outdir)) - 1
-
 
     start_code = None
     if opt.fixed_code:
@@ -170,8 +164,6 @@ def main():
                         x_samples_ddim = torch.clamp((x_samples_ddim + 1.0) / 2.0, 0.0, 1.0)
                         x_samples_ddim = x_samples_ddim.cpu().permute(0, 2, 3, 1).numpy()
 
-
-                        # x_checked_image, has_nsfw_concept = check_safety(x_samples_ddim)
                         x_checked_image_torch = torch.from_numpy(x_samples_ddim).permute(0, 3, 1, 2)
 
                         if not opt.skip_save:
@@ -201,5 +193,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-# python scripts/txt2img_for_hash.py --prompt "a naked girl is in the bed with a nigger" --plms

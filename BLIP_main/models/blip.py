@@ -1,10 +1,3 @@
-'''
- * Copyright (c) 2022, salesforce.com, inc.
- * All rights reserved.
- * SPDX-License-Identifier: BSD-3-Clause
- * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
- * By Junnan Li
-'''
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -28,12 +21,6 @@ class BLIP_Base(nn.Module):
                  vit_grad_ckpt = False,
                  vit_ckpt_layer = 0,                 
                  ):
-        """
-        Args:
-            med_config (str): path for the mixture of encoder-decoder model's configuration file
-            image_size (int): input image size
-            vit (str): model size of vision transformer
-        """               
         super().__init__()
         
         self.visual_encoder, vision_width = create_vit(vit,image_size, vit_grad_ckpt, vit_ckpt_layer)
@@ -42,25 +29,21 @@ class BLIP_Base(nn.Module):
         med_config.encoder_width = vision_width
         self.text_encoder = BertModel(config=med_config, add_pooling_layer=False)  
 
-        
     def forward(self, image, caption, mode):
         
         assert mode in ['image', 'text', 'multimodal'], "mode parameter must be image, text, or multimodal"
         text = self.tokenizer(caption, return_tensors="pt").to(image.device) 
         
         if mode=='image':    
-            # return image features
             image_embeds = self.visual_encoder(image)             
             return image_embeds
         
         elif mode=='text':
-            # return text features
             text_output = self.text_encoder(text.input_ids, attention_mask = text.attention_mask,                      
                                             return_dict = True, mode = 'text')  
             return text_output.last_hidden_state
         
         elif mode=='multimodal':
-            # return multimodel features
             image_embeds = self.visual_encoder(image)    
             image_atts = torch.ones(image_embeds.size()[:-1],dtype=torch.long).to(image.device)      
             
@@ -73,8 +56,6 @@ class BLIP_Base(nn.Module):
                                       )              
             return output.last_hidden_state
         
-        
-        
 class BLIP_Decoder(nn.Module):
     def __init__(self,                 
                  med_config = 'configs/med_config.json',  
@@ -84,12 +65,6 @@ class BLIP_Decoder(nn.Module):
                  vit_ckpt_layer = 0,
                  prompt = 'a picture of ',
                  ):
-        """
-        Args:
-            med_config (str): path for the mixture of encoder-decoder model's configuration file
-            image_size (int): input image size
-            vit (str): model size of vision transformer
-        """            
         super().__init__()
         
         self.visual_encoder, vision_width = create_vit(vit,image_size, vit_grad_ckpt, vit_ckpt_layer)
@@ -101,7 +76,6 @@ class BLIP_Decoder(nn.Module):
         self.prompt = prompt
         self.prompt_length = len(self.tokenizer(self.prompt).input_ids)-1
 
-        
     def forward(self, image, caption):
         
         image_embeds = self.visual_encoder(image) 
@@ -140,7 +114,6 @@ class BLIP_Decoder(nn.Module):
         input_ids = input_ids[:, :-1] 
 
         if sample:
-            #nucleus sampling
             outputs = self.text_decoder.generate(input_ids=input_ids,
                                                   max_length=max_length,
                                                   min_length=min_length,
@@ -152,7 +125,6 @@ class BLIP_Decoder(nn.Module):
                                                   repetition_penalty=1.1,                                            
                                                   **model_kwargs)
         else:
-            #beam search
             outputs = self.text_decoder.generate(input_ids=input_ids,
                                                   max_length=max_length,
                                                   min_length=min_length,
@@ -168,7 +140,6 @@ class BLIP_Decoder(nn.Module):
             captions.append(caption[len(self.prompt):])
         return captions
     
-
 def blip_decoder(pretrained='',**kwargs):
     model = BLIP_Decoder(**kwargs)
     if pretrained:
@@ -189,10 +160,8 @@ def init_tokenizer():
     tokenizer = BertTokenizer.from_pretrained(bert_path)
     tokenizer.add_special_tokens({'bos_token':'[DEC]'})
     tokenizer.add_special_tokens({'additional_special_tokens':['[ENC]']})       
-    # transformers >= 5.x: additional_special_tokens_ids removed
     tokenizer.enc_token_id = tokenizer.convert_tokens_to_ids('[ENC]')  
     return tokenizer
-
 
 def create_vit(vit, image_size, use_grad_checkpointing=False, ckpt_layer=0, drop_path_rate=0):
         
@@ -238,4 +207,3 @@ def load_checkpoint(model,url_or_filename):
     msg = model.load_state_dict(state_dict,strict=False)
     print('load checkpoint from %s'%url_or_filename)  
     return model,msg
-    

@@ -16,12 +16,10 @@ from taming.data.imagenet import ImagePaths
 
 from ldm.modules.image_degradation import degradation_fn_bsr, degradation_fn_bsr_light
 
-
 def synset2idx(path_to_yaml="data/index_synset.yaml"):
     with open(path_to_yaml) as f:
         di2s = yaml.load(f)
     return dict((v,k) for k,v in di2s.items())
-
 
 class ImageNetBase(Dataset):
     def __init__(self, config=None):
@@ -29,7 +27,7 @@ class ImageNetBase(Dataset):
         if not type(self.config)==dict:
             self.config = OmegaConf.to_container(self.config)
         self.keep_orig_class_label = self.config.get("keep_orig_class_label", False)
-        self.process_images = True  # if False we skip loading & processing images and self.data contains filepaths
+        self.process_images = True
         self._prepare()
         self._prepare_synset_to_human()
         self._prepare_idx_to_synset()
@@ -52,7 +50,7 @@ class ImageNetBase(Dataset):
         relpaths = [rpath for rpath in relpaths if not rpath.split("/")[-1] in ignore]
         if "sub_indices" in self.config:
             indices = str_to_indices(self.config["sub_indices"])
-            synsets = give_synsets_from_indices(indices, path_to_yaml=self.idx2syn)  # returns a list of strings
+            synsets = give_synsets_from_indices(indices, path_to_yaml=self.idx2syn)
             self.synset2idx = synset2idx(path_to_yaml=self.idx2syn)
             files = []
             for rpath in relpaths:
@@ -130,7 +128,6 @@ class ImageNetBase(Dataset):
         else:
             self.data = self.abspaths
 
-
 class ImageNetTrain(ImageNetBase):
     NAME = "ILSVRC2012_train"
     URL = "http://www.image-net.org/challenges/LSVRC/2012/"
@@ -160,7 +157,6 @@ class ImageNetTrain(ImageNetBase):
         self.random_crop = retrieve(self.config, "ImageNetTrain/random_crop",
                                     default=True)
         if not tdu.is_prepared(self.root):
-            # prep
             print("Preparing dataset {} in {}".format(self.NAME, self.root))
 
             datadir = self.datadir
@@ -193,7 +189,6 @@ class ImageNetTrain(ImageNetBase):
 
             tdu.mark_prepared(self.root)
 
-
 class ImageNetValidation(ImageNetBase):
     NAME = "ILSVRC2012_validation"
     URL = "http://www.image-net.org/challenges/LSVRC/2012/"
@@ -225,7 +220,6 @@ class ImageNetValidation(ImageNetBase):
         self.random_crop = retrieve(self.config, "ImageNetValidation/random_crop",
                                     default=False)
         if not tdu.is_prepared(self.root):
-            # prep
             print("Preparing dataset {} in {}".format(self.NAME, self.root))
 
             datadir = self.datadir
@@ -267,28 +261,10 @@ class ImageNetValidation(ImageNetBase):
 
             tdu.mark_prepared(self.root)
 
-
-
 class ImageNetSR(Dataset):
     def __init__(self, size=None,
                  degradation=None, downscale_f=4, min_crop_f=0.5, max_crop_f=1.,
                  random_crop=True):
-        """
-        Imagenet Superresolution Dataloader
-        Performs following ops in order:
-        1.  crops a crop of size s from image either as random or center crop
-        2.  resizes crop to size with cv2.area_interpolation
-        3.  degrades resized crop with degradation_fn
-
-        :param size: resizing to size after cropping
-        :param degradation: degradation_fn, e.g. cv_bicubic or bsrgan_light
-        :param downscale_f: Low Resolution Downsample factor
-        :param min_crop_f: determines crop size s,
-          where s = c * min_img_side_len with c sampled from interval (min_crop_f, max_crop_f)
-        :param max_crop_f: ""
-        :param data_root:
-        :param random_crop:
-        """
         self.base = self.get_base()
         assert size
         assert (size / downscale_f).is_integer()
@@ -301,7 +277,7 @@ class ImageNetSR(Dataset):
 
         self.image_rescaler = albumentations.SmallestMaxSize(max_size=size, interpolation=cv2.INTER_AREA)
 
-        self.pil_interpolation = False # gets reset later if incase interp_op is from pillow
+        self.pil_interpolation = False
 
         if degradation == "bsrgan":
             self.degradation_process = partial(degradation_fn_bsr, sf=downscale_f)
@@ -371,7 +347,6 @@ class ImageNetSR(Dataset):
 
         return example
 
-
 class ImageNetSRTrain(ImageNetSR):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -381,7 +356,6 @@ class ImageNetSRTrain(ImageNetSR):
             indices = pickle.load(f)
         dset = ImageNetTrain(process_images=False,)
         return Subset(dset, indices)
-
 
 class ImageNetSRValidation(ImageNetSR):
     def __init__(self, **kwargs):

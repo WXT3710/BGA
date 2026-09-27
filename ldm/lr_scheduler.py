@@ -1,10 +1,6 @@
 import numpy as np
 
-
 class LambdaWarmUpCosineScheduler:
-    """
-    note: use with a base_lr of 1.0
-    """
     def __init__(self, warm_up_steps, lr_min, lr_max, lr_start, max_decay_steps, verbosity_interval=0):
         self.lr_warm_up_steps = warm_up_steps
         self.lr_start = lr_start
@@ -32,12 +28,7 @@ class LambdaWarmUpCosineScheduler:
     def __call__(self, n, **kwargs):
         return self.schedule(n,**kwargs)
 
-
 class LambdaWarmUpCosineScheduler2:
-    """
-    supports repeated iterations, configurable via lists
-    note: use with a base_lr of 1.0.
-    """
     def __init__(self, warm_up_steps, f_min, f_max, f_start, cycle_lengths, verbosity_interval=0):
         assert len(warm_up_steps) == len(f_min) == len(f_max) == len(f_start) == len(cycle_lengths)
         self.lr_warm_up_steps = warm_up_steps
@@ -77,7 +68,6 @@ class LambdaWarmUpCosineScheduler2:
     def __call__(self, n, **kwargs):
         return self.schedule(n, **kwargs)
 
-
 class LambdaLinearScheduler(LambdaWarmUpCosineScheduler2):
 
     def schedule(self, n, **kwargs):
@@ -95,4 +85,3 @@ class LambdaLinearScheduler(LambdaWarmUpCosineScheduler2):
             f = self.f_min[cycle] + (self.f_max[cycle] - self.f_min[cycle]) * (self.cycle_lengths[cycle] - n) / (self.cycle_lengths[cycle])
             self.last_f = f
             return f
-
