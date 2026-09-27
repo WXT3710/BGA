@@ -1,7 +1,7 @@
-"""ALBM-inspired attribute + patch transfer for PZSH.
+"""ALBM-inspired attribute + patch transfer for SST.
 
 Maps ALBM's "transfer class information from the attribute / patch angles"
-onto the PZSH hashing baseline.  The class "centre" in `Center_Loss1` is the
+onto the SST hashing baseline.  The class "centre" in `Center_Loss1` is the
 carrier of class information in Hamming space, so all three mechanisms
 operate on it (or on the patch features that feed it):
 
@@ -54,7 +54,7 @@ def load_attribute_matrix(config):
     else:
         raise ValueError(f"attribute matrix not defined for dataset {dataset}")
 
-    A_cont = A.astype(np.float32)                         # 连续版（B 的 pair 模式用）
+    A_cont = A.astype(np.float32)
     A = (A > 0).astype(np.float32)                        # binarise
 
     assert A.shape[0] == config["n_class"], \
@@ -121,9 +121,9 @@ class AttributeTransferLoss(nn.Module):
 class AttributeCenterLoss(nn.Module):
     """(C) Align centre geometry with attribute geometry.
 
-    mode='full'       : 全类对 MSE（原始形态）
-    mode='seen_unseen': 只约束 unseen 行 x seen 列（迁移相关结构）
-    mode='topk'       : 每行只约束属性相似度 top-k 的类对（稀疏强关系）
+    mode='full'       : full class-pair MSE (original form)
+    mode='seen_unseen': constrain only unseen rows x seen columns (transfer-relevant structure)
+    mode='topk'       : constrain only top-k attribute-similar class pairs per row (sparse strong relationships)
     """
 
     def __init__(self, config, S_attr, mode="full", topk=16,
@@ -146,7 +146,7 @@ class AttributeCenterLoss(nn.Module):
                               S[self.unseen_idx][:, self.seen_idx])
         if self.mode == "topk":
             topk = min(self.topk, S.size(1) - 1)
-            _, idx = S.topk(topk + 1, dim=-1)             # +1 预留对角
+            _, idx = S.topk(topk + 1, dim=-1)
             mask = torch.zeros_like(S)
             mask.scatter_(1, idx, 1.0)
             mask.fill_diagonal_(0.0)

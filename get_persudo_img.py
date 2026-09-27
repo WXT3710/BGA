@@ -69,7 +69,7 @@ def load_replacement(x):
 def main():
     parser = argparse.ArgumentParser()
 	
-    parser.add_argument("--prompt", type=str, default="A realistic photo of a cat sitting on the sofa, high resolution, DSLR", help="输入的文本提示词")
+    parser.add_argument("--prompt", type=str, default="A realistic photo of a cat sitting on the sofa, high resolution, DSLR", help="")
     parser.add_argument("--outdir", type=str, default="outputs/txt2img-samples", help="")
     parser.add_argument("--skip_grid", action='store_true', help="")
     parser.add_argument("--skip_save", action='store_true', help="")

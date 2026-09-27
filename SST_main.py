@@ -56,7 +56,7 @@ def parse_args():
 
     parser.add_argument('--blip_loss', type=str, default="-logsoftmax")
     parser.add_argument('--hash_loss', type=str, default="center_loss")
-    parser.add_argument('--inform', type=str, default="PZSH")
+    parser.add_argument('--inform', type=str, default="SST")
 
     parser.add_argument('--save_path', type=str)
 
@@ -109,7 +109,6 @@ def parse_args():
                         help="geometry target: presence vectors 1[a>0] (paper) or the "
                              "raw continuous attributes (control)")
 
-    # ---- 性能增强实验开关 ----
     parser.add_argument('--batch_size', type=int, default=None,
                         help="")
     parser.add_argument('--aug', type=int, default=0,
@@ -407,7 +406,7 @@ class Center_Loss1(nn.Module):
         return loss_centre + self.consistency_weight * loss_consistency
 
 
-class PZSHOfficialHashLoss(nn.Module):
+class SSTOfficialHashLoss(nn.Module):
     """
 
     """
@@ -472,7 +471,7 @@ class PZSHOfficialHashLoss(nn.Module):
 
 class ProxyHashLoss(nn.Module):
     """
-    PZSH hashing loss (paper Eq. 8-11):  Lhash = Lcos + Lquant + beta*Lproxy
+    SST hashing loss (paper Eq. 8-11):  Lhash = Lcos + Lquant + beta*Lproxy
 
       - Lcos:    cosine-softmax classification of each hash code against the
                  class-wise semantic centres (Bernoulli {−1,+1}, selected from
@@ -616,7 +615,7 @@ def train_val(config, bit):
     if config["hash_loss"] == "center_loss":
         hash_criterion = Center_Loss1(config, bit, l).to(device)
     elif config["hash_loss"] == "official":
-        hash_criterion = PZSHOfficialHashLoss(config, bit).to(device)
+        hash_criterion = SSTOfficialHashLoss(config, bit).to(device)
     else:
         hash_criterion = ProxyHashLoss(config, bit, l).to(device)
 
@@ -669,7 +668,7 @@ def train_val(config, bit):
             align_loss = cosine_loss_fn(pred_features, BLIP_target, label_onehot)
 
             if config["hash_loss"] == "center_loss":
-                # PZSH-main baseline: loss = align + 1.0 * L_center
+                # SST-main baseline: loss = align + 1.0 * L_center
                 h_loss = hash_criterion(pred_hash, pred_hash2, label_onehot, ind, epoch)
                 loss = align_loss + h_loss
                 hash_term = h_loss.item()

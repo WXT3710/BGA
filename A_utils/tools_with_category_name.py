@@ -6,7 +6,7 @@ from PIL import Image
 from tqdm import tqdm
 import torchvision.datasets as dsets
 from torchvision.transforms.functional import InterpolationMode
-from torch.cuda.amp import autocast  # 自动混合精度
+from torch.cuda.amp import autocast
 import os
 
 def config_dataset(config):
@@ -20,17 +20,16 @@ def config_dataset(config):
         config["topK"] = 4000  # 4000
         config["n_class"] = 717
 
-    if config["dataset"] == "CUB":  # CUB_整合版，其实图片库就用加了文生图的就行，只是txt要变，所以把原版的train.txt也放到文生图目录里，这样就整合了
+    if config["dataset"] == "CUB":
           config["data_path"] = "dataset/CUB/CUB-last50_is_txt2img/images/"
     if config["dataset"] == "AWA":  # AWA
         config["data_path"] = "dataset/AWA/JPEGImages/"
-    if config["dataset"] == "SUN":  # SUN (SUNAttributeDB 真实图像，无文生图)
+    if config["dataset"] == "SUN":
         config["data_path"] = "dataset/SUN_Attribute/images/"
 
     if config["dataset"] == "CUB" :
         if config["TGI"] == 1:
             config["data"] = {
-            # CUB_整合版(其实只有训练集不同，其他都相同的):
             "train_set" : {"list_path": f"dataset/CUB/CUB-last50_is_txt2img/images/train_40_with_caption_catgoryname_blip768F.txt", "batch_size": config["batch_size"]},
 
             
@@ -39,21 +38,20 @@ def config_dataset(config):
             }
         else:
             config["data"] = {
-            # CUB_整合版(其实只有训练集不同，其他都相同的):
             "train_set" : {"list_path": f"dataset/CUB/CUB-last50_is_txt2img/images/train_40_with_caption_catgoryname_blip768F_NOTGI.txt", "batch_size": config["batch_size"]},
 
             "database": {"list_path": f"dataset/CUB/CUB-last50_is_txt2img/images/database1.txt", "batch_size": config["batch_size"]},
             "test": {"list_path": f"dataset/CUB/CUB-last50_is_txt2img/images/test1.txt", "batch_size": config["batch_size"]}
             }
     elif config["dataset"] == "SUN":
-        if config["TGI"] == 1:  # TGI=1: 含 unseen 伪图 (USI, 论文正确设置)
-            config["data"] = {  # SUN 的
+        if config["TGI"] == 1:
+            config["data"] = {
                 "train_set" : {"list_path": f"dataset/SUN_Attribute/filetxt_500_217/train_seen_blip.txt", "batch_size": config["batch_size"]},
 
                 "database": {"list_path": f"dataset/SUN_Attribute/filetxt_500_217/database.txt", "batch_size": config["batch_size"]},
                 "test": {"list_path": f"dataset/SUN_Attribute/filetxt_500_217/test_full.txt", "batch_size": config["batch_size"]}
                 }
-        else:  # TGI=0: 仅 seen 真实图像 (纯 inductive)
+        else:
             config["data"] = {
                 "train_set" : {"list_path": f"dataset/SUN_Attribute/filetxt_500_217/train_seen_real_blip.txt", "batch_size": config["batch_size"]},
 
@@ -62,14 +60,14 @@ def config_dataset(config):
                 }
     else:  # AWA
         if config["TGI"] == 1:
-            config["data"] = {  # AWA的
+            config["data"] = {
                 "train_set" : {"list_path": f"dataset/AWA/JPEGImages/train_100_with_caption_catgoryname_AttrVoc_mskimg_SDimg_blip768F.txt", "batch_size": config["batch_size"]},
 
                 "database": {"list_path": f"dataset/AWA/filetxt/database.txt", "batch_size": config["batch_size"]},
                 "test": {"list_path": f"dataset/AWA/filetxt/test.txt", "batch_size": config["batch_size"]}
                 }
         else:
-            config["data"] = {  # AWA的
+            config["data"] = {
                 "train_set" : {"list_path": f"dataset/AWA/JPEGImages/train_100_with_caption_catgoryname_AttrVoc_mskimg_SDimg_blip768F_NOTGI.txt", "batch_size": config["batch_size"]},
 
                 "database": {"list_path": f"dataset/AWA/filetxt/database.txt", "batch_size": config["batch_size"]},
@@ -105,21 +103,14 @@ def pr_curve(rF, qF, rL, qL, draw_range=draw_range):
         R.append(np.mean(r))
     return P, R
 
-class ImageList_for_train(object):  # 新写一个，用来读带有文本描述的数据集。
-    # ImageList_for_train 类的新实例时，会调用这个函数。它接受三个参数： 
-    # data_path：包含图像文件的目录路径。
-    # image_list：一个列表，其中包含图像文件的路径和对应的标签。每个元素是一个字符串，空格分隔，第一个元素是图像的相对路径，剩下的是标签值。
-    # transform：一个函数或转换对象，用于对图像进行预处理（如缩放、归一化等）。
+class ImageList_for_train(object):
     def __init__(self, data_path, image_list, transform_for_vae, transform_for_clip, aug=False, strong=False):
         self.imgs = [
             (
-                data_path + val.split('\t')[0],  # 图像路径
-                np.array([int(la) for la in val.split('\t')[1].split()]),  # 标签向量
+                data_path + val.split('\t')[0],
+                np.array([int(la) for la in val.split('\t')[1].split()]),
 
-                # val.split('\t')[7],  # BLIP特征  AWA用这个
-                val.split('\t')[-1],  # BLIP特征  CUB用这个
-                # val.split('\t')[2],  # 文本描述
-                # val.split('\t')[3]  # 类别名
+                val.split('\t')[-1],
             )
             for val in image_list
         ]
@@ -134,27 +125,19 @@ class ImageList_for_train(object):  # 新写一个，用来读带有文本描述
         # img_for_clip = self.transform_for_clip(img)
         img_for_blip = self.transform_for_blip(img)
 
-        # 💥 这里加！！把BLIP_target从字符串变成Tensor
         BLIP_target = torch.tensor([float(x) for x in BLIP_target.strip().split()], dtype=torch.float)
 
-        return img_for_blip, label_onehot, BLIP_target, index  # 返回图像、标签、描述和索引
+        return img_for_blip, label_onehot, BLIP_target, index
 
     def __len__(self):
         return len(self.imgs)
 
-class ImageList(object):  # 新写一个，用来读带有文本描述的数据集。
-    # ImageList 类的新实例时，会调用这个函数。它接受三个参数： 
-    # data_path：包含图像文件的目录路径。
-    # image_list：一个列表，其中包含图像文件的路径和对应的标签。每个元素是一个字符串，空格分隔，第一个元素是图像的相对路径，剩下的是标签值。
-    # transform：一个函数或转换对象，用于对图像进行预处理（如缩放、归一化等）。
+class ImageList(object):
     def __init__(self, data_path, image_list, transform_for_vae=None, transform_for_clip=None):
         self.imgs = [
             (
-                data_path + val.split('\t')[0],  # 图像路径
-                np.array([int(la) for la in val.split('\t')[1].split()]),  # 标签向量
-                # val.split('\t')[7],  # BLIP特征
-                # val.split('\t')[2],  # 文本描述
-                # val.split('\t')[3]  # 类别名
+                data_path + val.split('\t')[0],
+                np.array([int(la) for la in val.split('\t')[1].split()]),
             )
             for val in image_list
         ]
@@ -168,27 +151,25 @@ class ImageList(object):  # 新写一个，用来读带有文本描述的数据�
         # img_for_vae = self.transform_for_vae(img)
         # img_for_clip = self.transform_for_clip(img)
         img_for_blip = self.transform_for_blip(img)
-        return img_for_blip, label_onehot, index  # 返回图像、标签、描述和索引
+        return img_for_blip, label_onehot, index
 
     def __len__(self):
         return len(self.imgs)
     
 def image_transform_for_vae():
-    # 确保图像大小符合 vae 的输入要求
     return transforms.Compose([
-       transforms.Resize((512, 512)),  # 调整图像大小到512x512
-        transforms.ToTensor(),          # 将 PIL Image 转为张量，范围 [0,1]
+       transforms.Resize((512, 512)),
+        transforms.ToTensor(),
         transforms.Normalize(
             mean=(0.5, 0.5, 0.5),
-            std=(0.5, 0.5, 0.5)  # 使用均值0.5和标准差0.5, 将[0,1]范围变换到[-1,1]
+            std=(0.5, 0.5, 0.5)
         )
     ])
 
 def image_transform_for_clip():
-    # 确保图像大小符合 CLIP 的输入要求
     return transforms.Compose([
-        transforms.Resize((224, 224)),  # 调整图像大小到224x224
-        transforms.ToTensor(),          # 将 PIL Image 转为张量，范围 [0,1]
+        transforms.Resize((224, 224)),
+        transforms.ToTensor(),
         transforms.Normalize(
             mean=(0.48145466, 0.4578275, 0.40821073),
             std=(0.26862954, 0.26130258, 0.27577711)
@@ -318,7 +299,7 @@ def get_data(config):
 
     dsets = {}
     dset_loaders = {}
-    data_config = config["data"] # 图片训练测试检索三种图片集合的位置
+    data_config = config["data"]
 
     for data_set in ["train_set"]:
         dsets[data_set] = ImageList_for_train(config["data_path"],
@@ -342,7 +323,7 @@ def get_data(config):
                                                     batch_size=data_config[data_set]["batch_size"],
                                                     shuffle=False, num_workers=4)
     return dset_loaders["train_set"], dset_loaders["test"], dset_loaders["database"], \
-        len(dsets["train_set"]), len(dsets["test"]), len(dsets["database"]) # 这里返回的就是训练，测试，检索集的分别图片数量
+        len(dsets["train_set"]), len(dsets["test"]), len(dsets["database"])
 
 
 
@@ -351,9 +332,9 @@ class ImageList_for_train_CLip(object):
     def __init__(self, data_path, image_list, transform_for_clip):
         self.imgs = [
             (
-                os.path.join(data_path, val.split('\t')[0]),  # 图像路径
-                np.array([int(la) for la in val.split('\t')[1].split()]),  # 标签 one-hot
-                val.split('\t')[4]  # 第5列为保存的CLIP特征字符串
+                os.path.join(data_path, val.split('\t')[0]),
+                np.array([int(la) for la in val.split('\t')[1].split()]),
+                val.split('\t')[4]
             )
             for val in image_list
         ]
@@ -396,7 +377,7 @@ def get_data_for_CLIP(config):
 
     dsets = {}
     dset_loaders = {}
-    data_config = config["data"] # 图片训练测试检索三种图片集合的位置
+    data_config = config["data"]
 
     for data_set in ["train_set"]:
         dsets[data_set] = ImageList_for_train_CLip(config["data_path"],
@@ -416,12 +397,11 @@ def get_data_for_CLIP(config):
                                                     batch_size=data_config[data_set]["batch_size"],
                                                     shuffle=False, num_workers=4)
     return dset_loaders["train_set"], dset_loaders["test"], dset_loaders["database"], \
-        len(dsets["train_set"]), len(dsets["test"]), len(dsets["database"]) # 这里返回的就是训练，测试，检索集的分别图片数量
+        len(dsets["train_set"]), len(dsets["test"]), len(dsets["database"])
 
 
 
 
-# ==================================== 计算精度 ====================================
 def compute_result(dataloader, net, device):
     bs, clses = [], []
     net.eval()
@@ -429,7 +409,6 @@ def compute_result(dataloader, net, device):
         clses.append(cls)
 
         # output = net(img.to(device))   
-        # print(output)  # 打印输出内容，检查返回的值
         hash_codes, _ = net(image_for_vae.to(device), image_for_clip.to(device)) 
         bs.append(hash_codes.data.cpu())    
         # bs.append((net(img.to(device))).data.cpu())
@@ -443,20 +422,13 @@ def compute_result_BlipHash1(dataloader, net, device):
             clses.append(labels)
             images = images.to(device)
 
-            with autocast():  # 💥 开启混合精度加速推理，加速程序运行效率
+            with autocast():
                 _, hash_codes, _, _ = net(images)
-            # _, hash_codes = net(images)  # ✅只输入图像，取出哈希层输出
             bs.append(hash_codes.data.cpu())
 
     return torch.cat(bs).sign(), torch.cat(clses)
 
 def compute_result_BlipHash_attr(dataloader, net, device):
-    """As compute_result_BlipHash1, but also returns the attribute-branch embedding.
-
-    Only used when --dump_attr is set, to capture the patch-branch output for the
-    analyses of what that branch actually learns. net(x) already returns attr_logits,
-    so this costs no extra forward pass.
-    """
     bs, clses, attrs = [], [], []
     net.eval()
     with torch.no_grad():
@@ -480,9 +452,8 @@ def compute_result_BlipHash_4_5(dataloader, net, device):
             clses.append(labels)
             images = images.to(device)
 
-            with autocast():  # 💥 开启混合精度加速推理，加速程序运行效率
+            with autocast():
                 _, hash_codes, _, _ = net(images)
-            # _, hash_codes = net(images)  # ✅只输入图像，取出哈希层输出
             bs.append(hash_codes.data.cpu())
 
     return torch.cat(bs).sign(), torch.cat(clses)
@@ -495,9 +466,8 @@ def compute_result_BlipHash2(dataloader, net, device):
             clses.append(labels)
             images = images.to(device)
 
-            with autocast():  # 💥 开启混合精度加速推理，加速程序运行效率
+            with autocast():
                 _, hash_codes, _ = net(images)
-            # _, hash_codes = net(images)  # ✅只输入图像，取出哈希层输出
             bs.append(hash_codes.data.cpu())
 
     return torch.cat(bs).sign(), torch.cat(clses)
@@ -541,9 +511,7 @@ def CalcHammingDist(B1, B2):
     return distH
 
 
-# ==================================== TTA（测试时增强） ====================================
 def _tta_crops(img):
-    """resize 256 -> 5 裁剪 (224) x hflip -> 10 views。"""
     img = transforms.Resize(256, interpolation=InterpolationMode.BICUBIC)(img)
     crops = []
     for i, j in [(0, 0), (0, 32), (32, 0), (32, 32), (16, 16)]:
@@ -554,7 +522,6 @@ def _tta_crops(img):
 
 
 class TTAImageList(object):
-    """返回每张图的 10 个视角 [10,3,224,224]。"""
 
     def __init__(self, data_path, image_list):
         self.imgs = [
@@ -592,7 +559,6 @@ def get_data_tta(config):
 
 
 def compute_result_tta(dataloader, net, device):
-    """10 视角平均后的 sign hash。"""
     bs, clses = [], []
     net.eval()
     with torch.no_grad():
@@ -615,7 +581,6 @@ def CalcTopMap(rB, qB, retrievalL, queryL, topk):  # topk = -1
         gnd = gnd[ind]
 
         tgnd = gnd[0:topk]
-        # print(f"gnd.shape = {gnd.shape}------------------------") 打印出来就是检索集总图片数量  CUB就是5788
         tsum = np.sum(tgnd).astype(int)
         if tsum == 0:
             continue
@@ -625,5 +590,5 @@ def CalcTopMap(rB, qB, retrievalL, queryL, topk):  # topk = -1
         topkmap_ = np.mean(count / (tindex))
         topkmap = topkmap + topkmap_
     topkmap = topkmap / num_query
-    return topkmap  # 返回 topkmap
+    return topkmap
 
