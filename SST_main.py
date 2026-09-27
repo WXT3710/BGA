@@ -61,7 +61,7 @@ def parse_args():
     parser.add_argument('--save_path', type=str)
 
     parser.add_argument('--train_file_override', type=str, default=None,
-                        help="覆盖 train_set 的 list_path（协议对照实验用）")
+                        help="")
 
     parser.add_argument('--dump_attr', type=int, default=0,
                         help="save the patch-branch attribute embedding of the best epoch "
@@ -98,11 +98,11 @@ def parse_args():
     parser.add_argument('--attr_patch_weight', type=float, default=0.1)
     parser.add_argument('--attr_patch_mode', type=str, default='bce',
                         choices=['bce', 'bce_topk', 'pair', 'pair_topk'],
-                        help="(B) bce=全属性BCE / bce_topk=每类top-k判别属性BCE / pair=批内属性结构cosine蒸馏 / pair_topk=pair+批内top-k稀疏化")
+                        help="")
     parser.add_argument('--attr_patch_topk', type=int, default=32)
     parser.add_argument('--attr_center_mode', type=str, default='full',
                         choices=['full', 'seen_unseen', 'topk'],
-                        help="(C) full=全类对MSE / seen_unseen=仅seen-unseen块 / topk=每行top-k强关系")
+                        help="")
     parser.add_argument('--attr_center_topk', type=int, default=16)
     parser.add_argument('--attr_center_target', type=str, default='presence',
                         choices=['presence', 'continuous'],
@@ -111,21 +111,20 @@ def parse_args():
 
     # ---- 性能增强实验开关 ----
     parser.add_argument('--batch_size', type=int, default=None,
-                        help="覆盖默认 batch size 32")
+                        help="")
     parser.add_argument('--aug', type=int, default=0,
-                        help="训练数据增强: RandomResizedCrop + hflip (0=off, 1=on)")
+                        help="")
     parser.add_argument('--aug_strong', type=int, default=0,
-                        help="强增强: scale(0.5,1.0) + RandomErasing (需 --aug 1)")
+                        help="")
     parser.add_argument('--tta', type=int, default=0,
-                        help="测试时增强: 10 视角平均评测 (0=off, 1=on)")
+                        help="")
     parser.add_argument('--consistency_weight', type=float, default=None,
-                        help="Center_Loss1 的一致性项权重 (默认 0.1)")
+                        help="")
     parser.add_argument('--tau', type=float, default=None,
-                        help="LCL 温度 (默认 0.07)")
+                        help="")
     parser.add_argument('--attr_patch_pool', type=str, default='mean',
                         choices=['mean', 'attention', 'clspatch', 'cls', 'queries'],
-                        help="B 头的特征来源: mean/attention/clspatch 用 patch token, "
-                             "cls 用 CLS token（对照, 判断收益是否来自 patch 特征）")
+                        help="")
 
     return parser.parse_args()
 
@@ -374,13 +373,7 @@ class LogSoftmaxContrastiveLoss_all_positive_samples(nn.Module):
 
 class Center_Loss1(nn.Module):
     """
-    Center Loss for Deep Hashing (PZSH-main 该基线论文 baseline 的原始实现).
-
-    Maintains learnable centres for each class and pulls hash codes toward
-    their class centres via MSE.  A lightweight consistency term between
-    the query and momentum encoder outputs stabilises training.
-
-    L_center = MSE(pred_hash, centres[label]) + 0.1 * MSE(norm(q), norm(k).detach())
+    
     """
 
     def __init__(self, config, bit, class_list):
@@ -416,14 +409,7 @@ class Center_Loss1(nn.Module):
 
 class PZSHOfficialHashLoss(nn.Module):
     """
-    官方 PZSH 代码 (github.com/caoyuan618/PZSH) 的 hash loss 语义，逐行等价移植：
 
-      - hash_center: 固定的平衡 Bernoulli 中心（每类 bit/2 个 +1、bit/2 个 -1，
-        30 次试验选最小成对 Hamming > bit/4 且均值 >= bit/2 的那组），不可学习
-      - center loss: one-vs-all BCE（softmax logits + 0/1 targets，非 softmax-CE）
-      - quantization: lambda_quant = 1e-4
-      - proxy loss: 当前 batch 码 vs 动量编码器历史码 memory bank，同为正对，
-        epoch < proxy_warmup(=10) 时不启用；beta 加权
     """
     def __init__(self, config, bit):
         super().__init__()
@@ -440,7 +426,7 @@ class PZSHOfficialHashLoss(nn.Module):
                              torch.randn(config["num_train"], bit), persistent=False)
         self.register_buffer("label_memory",
                              torch.zeros(config["num_train"], self.n_class), persistent=False)
-        # ALBM 兼容别名（官方框架下中心固定；ALBM 集成时再处理梯度路径）
+        
         self.centres = self.hash_center
 
     def _generate_hash_centers(self, bit, n_class, seed=42):
@@ -567,7 +553,7 @@ class ProxyHashLoss(nn.Module):
 
 
 def compute_result_plain(dataloader, net, device):
-    """官方语义的评估（无 autocast），与官方 compute_pzsh_result 一致。"""
+    """"""
     bs, clses = [], []
     net.eval()
     with torch.no_grad():
@@ -602,11 +588,11 @@ def train_val(config, bit):
         config["n_attr"] = attr_matrix.shape[1]
         attr_matrix = attr_matrix.to(device)
         attr_cont = attr_cont.to(device)
-        # bce_topk 模式: 每类选最有区分度的 top-k 属性（类有该属性且该属性在类间稀有）
+        
         attr_topk_mask = None
         if config.get("attr_patch_mode", "bce") == "bce_topk":
             freq = attr_matrix.mean(dim=0)                     # [n_attr]
-            score = attr_matrix * (1.0 - freq)                 # 区分度
+            score = attr_matrix * (1.0 - freq)                 
             k = min(config.get("attr_patch_topk", 32), attr_matrix.shape[1])
             _, idx = score.topk(k, dim=1)
             attr_topk_mask = torch.zeros_like(attr_matrix)
@@ -614,7 +600,7 @@ def train_val(config, bit):
             attr_topk_mask = attr_topk_mask.to(device)
 
     train_loader, test_loader, dataset_loader, num_train, num_test, num_dataset = get_data(config)
-    config["num_train"] = num_train  # 官方 loss 的 memory bank 需要真实训练集大小
+    config["num_train"] = num_train  
 
     net = config["net"](config, bit).to(device)
 
@@ -626,9 +612,7 @@ def train_val(config, bit):
 
     l = list(range(config['n_class']))
 
-    # --hash_loss center_loss: PZSH-main 该基线 语义 (MSE + consistency, 可学习中心)
-    # --hash_loss official:     官方 PZSH 代码语义 (BCE + 1e-4 quant + memory proxy, 固定中心)
-    # --hash_loss proxy_loss:   v1 实现 (Lcos + Lquant + beta*Lproxy)
+
     if config["hash_loss"] == "center_loss":
         hash_criterion = Center_Loss1(config, bit, l).to(device)
     elif config["hash_loss"] == "official":
@@ -636,7 +620,6 @@ def train_val(config, bit):
     else:
         hash_criterion = ProxyHashLoss(config, bit, l).to(device)
 
-    # centres 是 nn.Parameter，必须加入优化器才能学习（lr 稍大以促进收敛）
     optimizer.add_param_group(
         {"params": hash_criterion.parameters(), "lr": 2e-4})
 
@@ -654,7 +637,6 @@ def train_val(config, bit):
             seen_idx=seen_idx, unseen_idx=unseen_idx).to(device)
         logger.info(f"(C) Centre-attribute structure alignment enabled (mode={config.get('attr_center_mode', 'full')})")
 
-    # 保存初始中心矩阵（Bernoulli 初始化后、训练前），供中心几何对比使用
     np.save(
         os.path.join(config["save_path"], f"{config['dataset']}_init_centres_bit{bit}.npy"),
         hash_criterion.centres.detach().cpu().numpy()
@@ -692,7 +674,6 @@ def train_val(config, bit):
                 loss = align_loss + h_loss
                 hash_term = h_loss.item()
             elif config["hash_loss"] == "official":
-                # 官方语义: loss = align + alpha * L_hash
                 h_loss = hash_criterion(pred_hash, pred_hash2, label_onehot, ind, epoch)
                 loss = align_loss + config["hash_weight"] * h_loss
                 hash_term = config["hash_weight"] * h_loss.item()
@@ -723,15 +704,12 @@ def train_val(config, bit):
                         attr_logits, attr_target, reduction='none') * m
                     attr_loss = attr_loss.sum() / (m.sum() + 1e-6)
                 elif mode == "pair":
-                    # 批内属性结构蒸馏: patch 属性嵌入的 pairwise cosine
-                    # 对齐类别属性向量的 pairwise cosine（连续值）
                     attr_emb = F.normalize(attr_logits, dim=-1)
                     sim = attr_emb @ attr_emb.T
                     tgt = attr_cont[labels]
                     tgt_sim = F.normalize(tgt, dim=-1) @ F.normalize(tgt, dim=-1).T
                     attr_loss = F.mse_loss(sim, tgt_sim)
                 elif mode == "pair_topk":
-                    # pair + 目标矩阵稀疏化: 每行只保留 top-k 属性最相似的类对
                     attr_emb = F.normalize(attr_logits, dim=-1)
                     sim = attr_emb @ attr_emb.T
                     tgt = attr_cont[labels]
@@ -769,7 +747,6 @@ def train_val(config, bit):
         print(f"[Epoch {epoch+1}] Align={align_loss_sum:.4f} | Hash={hash_loss_sum2:.4f}")
         logger.info(f"[Epoch {epoch+1}] Align={align_loss_sum:.4f} | Hash={hash_loss_sum2:.4f}")
 
-        # 测试mAP
         if (epoch + 1) % config["test_map"] == 0:
             with torch.no_grad():
                 if config.get("tta", False):
@@ -790,7 +767,6 @@ def train_val(config, bit):
             if mAP > best_mAP:
                 best_mAP = mAP
 
-                # 保存最佳中心矩阵（供中心几何可视化使用）
                 np.save(
                     os.path.join(config["save_path"], f"{config['dataset']}_best_centres_bit{bit}.npy"),
                     hash_criterion.centres.detach().cpu().numpy()
